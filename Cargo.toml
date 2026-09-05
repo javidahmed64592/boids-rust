@@ -1,9 +1,10 @@
 [package]
-name = "template_rust"
+name = "boids-rust"
 version = "0.1.0"
-description = "A template for creating Rust applications."
+description = "A Rust implementation of Boids."
 edition = "2024"
-repository = "https://github.com/javidahmed64592/template-rust"
+repository = "https://github.com/javidahmed64592/boids-rust"
+homepage = "https://github.com/javidahmed64592/boids-rust"
 license = "MIT"
 authors = ["Javid Ahmed <javidahmed@icloud.com>"]
 
