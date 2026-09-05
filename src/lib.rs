@@ -4,10 +4,34 @@
 // Vec2
 // ---------------------------------------------------------------------
 
+use std::ops::{Add, Sub};
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,
+}
+
+impl Add for Vec2 {
+    type Output = Vec2;
+
+    fn add(self, other: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
+impl Sub for Vec2 {
+    type Output = Vec2;
+
+    fn sub(self, other: Vec2) -> Vec2 {
+        Vec2 {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
 }
 
 impl Vec2 {
@@ -17,22 +41,6 @@ impl Vec2 {
 
     pub fn zero() -> Self {
         Vec2 { x: 0.0, y: 0.0 }
-    }
-
-    /// Vector addition.
-    pub fn add(self, other: Vec2) -> Vec2 {
-        Vec2 {
-            x: self.x + other.x,
-            y: self.y + other.y,
-        }
-    }
-
-    /// Vector subtraction (self - other).
-    pub fn sub(self, other: Vec2) -> Vec2 {
-        Vec2 {
-            x: self.x - other.x,
-            y: self.y - other.y,
-        }
     }
 
     /// Scalar multiplication.
@@ -56,12 +64,12 @@ impl Vec2 {
 
     /// Distance between two points.
     pub fn distance(self, other: Vec2) -> f32 {
-        self.sub(other).length()
+        (self - other).length()
     }
 
     /// Squared distance between two points.
     pub fn distance_squared(self, other: Vec2) -> f32 {
-        self.sub(other).length_squared()
+        (self - other).length_squared()
     }
 
     /// Unit vector in the same direction. Decide what happens for the
@@ -130,10 +138,10 @@ pub fn separation(boid: &Boid, neighbors: &[&Boid]) -> Vec2 {
     } else {
         let mut steer = Vec2::zero();
         for &neighbor in neighbors {
-            let diff = boid.position.sub(neighbor.position);
+            let diff = boid.position - neighbor.position;
             let distance = diff.length_squared();
             if distance > 0.0 {
-                steer = steer.add(diff.scale(1.0 / distance));
+                steer = steer + diff.scale(1.0 / distance);
             }
         }
         steer
@@ -148,10 +156,10 @@ pub fn alignment(boid: &Boid, neighbors: &[&Boid]) -> Vec2 {
     } else {
         let mut steer = Vec2::zero();
         for &neighbor in neighbors {
-            steer = steer.add(neighbor.velocity);
+            steer = steer + neighbor.velocity;
         }
         steer = steer.scale(1.0 / neighbors.len() as f32);
-        steer.sub(boid.velocity)
+        steer - boid.velocity
     }
 }
 
@@ -163,11 +171,11 @@ pub fn cohesion(boid: &Boid, neighbors: &[&Boid]) -> Vec2 {
     } else {
         let mut steer = Vec2::zero();
         for &neighbor in neighbors {
-            steer = steer.add(neighbor.position);
+            steer = steer + neighbor.position;
         }
         steer = steer.scale(1.0 / neighbors.len() as f32);
-        steer = steer.sub(boid.position);
-        steer.sub(boid.velocity)
+        steer = steer - boid.position;
+        steer - boid.velocity
     }
 }
 
@@ -185,20 +193,16 @@ pub struct Weights {
 
 /// Combine the three rule outputs into a single acceleration vector.
 pub fn combine(separation: Vec2, alignment: Vec2, cohesion: Vec2, weights: Weights) -> Vec2 {
-    separation
-        .scale(weights.separation)
-        .add(alignment.scale(weights.alignment))
-        .add(cohesion.scale(weights.cohesion))
+    separation.scale(weights.separation)
+        + alignment.scale(weights.alignment)
+        + cohesion.scale(weights.cohesion)
 }
 
 /// Apply `acceleration` to `boid` over timestep `dt`, clamping the
 /// resulting velocity to `max_speed`. Returns (new_velocity, new_position).
 pub fn steer(boid: &Boid, acceleration: Vec2, dt: f32, max_speed: f32) -> (Vec2, Vec2) {
-    let new_velocity = boid
-        .velocity
-        .add(acceleration.scale(dt))
-        .clamp_length(max_speed);
-    let new_position = boid.position.add(new_velocity.scale(dt));
+    let new_velocity = (boid.velocity + acceleration.scale(dt)).clamp_length(max_speed);
+    let new_position = boid.position + new_velocity.scale(dt);
     (new_velocity, new_position)
 }
 
@@ -215,7 +219,7 @@ mod tests {
     #[test]
     fn add_combines_components() {
         assert_eq!(
-            Vec2::new(1.0, 2.0).add(Vec2::new(3.0, 4.0)),
+            Vec2::new(1.0, 2.0) + Vec2::new(3.0, 4.0),
             Vec2::new(4.0, 6.0)
         );
     }
@@ -223,7 +227,7 @@ mod tests {
     #[test]
     fn sub_combines_components() {
         assert_eq!(
-            Vec2::new(5.0, 7.0).sub(Vec2::new(3.0, 4.0)),
+            Vec2::new(5.0, 7.0) - Vec2::new(3.0, 4.0),
             Vec2::new(2.0, 3.0)
         );
     }
@@ -383,6 +387,6 @@ mod tests {
         assert!(new_velocity.length() <= max_speed);
 
         // Check that the new position is updated correctly
-        assert_eq!(new_position, boid.position.add(new_velocity.scale(dt)));
+        assert_eq!(new_position, boid.position + new_velocity.scale(dt));
     }
 }
