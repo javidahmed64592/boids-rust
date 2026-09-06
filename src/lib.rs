@@ -4,6 +4,8 @@
 // Vec2
 // ---------------------------------------------------------------------
 
+pub mod sim;
+
 use std::ops::{Add, Sub};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -121,7 +123,7 @@ pub fn find_neighbors<'a>(boid: &Boid, boids: &'a [Boid], radius: f32) -> Vec<&'
         .iter()
         .filter(|&other| {
             let distance = boid.position.distance(other.position);
-            distance < radius && boid.position != other.position
+            distance < radius && *boid != *other
         })
         .collect()
 }
@@ -150,16 +152,18 @@ pub fn separation(boid: &Boid, neighbors: &[&Boid]) -> Vec2 {
 
 /// Steer towards the average heading of `neighbors`.
 /// Returns the zero vector if `neighbors` is empty.
-pub fn alignment(boid: &Boid, neighbors: &[&Boid]) -> Vec2 {
+pub fn alignment(boid: &Boid, neighbors: &[&Boid], max_speed: f32) -> Vec2 {
     if neighbors.is_empty() {
         Vec2::zero()
     } else {
-        let mut steer = Vec2::zero();
+        let mut avg_velocity = Vec2::zero();
         for &neighbor in neighbors {
-            steer = steer + neighbor.velocity;
+            avg_velocity = avg_velocity + neighbor.velocity;
         }
-        steer = steer.scale(1.0 / neighbors.len() as f32);
-        steer - boid.velocity
+        avg_velocity = avg_velocity.scale(1.0 / neighbors.len() as f32);
+
+        let desired = avg_velocity.normalize().scale(max_speed);
+        desired - boid.velocity
     }
 }
 
@@ -321,14 +325,14 @@ mod tests {
     fn alignment_with_no_neighbors_is_zero() {
         let boid = Boid::new(Vec2::new(0.0, 0.0), Vec2::zero());
         let neighbors: Vec<&Boid> = vec![];
-        assert_eq!(alignment(&boid, &neighbors), Vec2::zero());
+        assert_eq!(alignment(&boid, &neighbors, 1.0), Vec2::zero());
     }
 
     #[test]
     fn alignment_matches_identical_neighbor_velocities() {
         let boid = Boid::new(Vec2::new(0.0, 0.0), Vec2::zero());
         let neighbors = [&Boid::new(Vec2::new(1.0, 0.0), Vec2::new(1.0, 0.0))];
-        assert_eq!(alignment(&boid, &neighbors), Vec2::new(1.0, 0.0));
+        assert_eq!(alignment(&boid, &neighbors, 1.0), Vec2::new(1.0, 0.0));
     }
 
     // --- cohesion ---
@@ -367,7 +371,7 @@ mod tests {
         let max_speed = 1.0;
 
         let separation = separation(&boid, &neighbors);
-        let alignment = alignment(&boid, &neighbors);
+        let alignment = alignment(&boid, &neighbors, max_speed);
         let cohesion = cohesion(&boid, &neighbors);
 
         let acceleration = combine(
