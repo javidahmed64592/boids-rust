@@ -4,6 +4,8 @@
 // Vec2
 // ---------------------------------------------------------------------
 
+pub mod sim;
+
 use std::ops::{Add, Sub};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
