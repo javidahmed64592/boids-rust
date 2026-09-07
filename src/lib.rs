@@ -4,8 +4,10 @@
 // Vec2
 // ---------------------------------------------------------------------
 
+mod grid;
 pub mod sim;
 
+pub use grid::SpatialGrid;
 use std::ops::{Add, Sub};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
