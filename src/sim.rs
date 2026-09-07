@@ -101,8 +101,28 @@ impl Simulation {
     /// Compute the steering acceleration for a single boid against the
     /// rest of the (unmodified) flock, using `self.config`.
     fn compute_acceleration(&self, boid: &Boid) -> Vec2 {
-        let perception_neighbors = find_neighbors(boid, &self.boids, self.config.perception_radius);
-        let separation_neighbors = find_neighbors(boid, &self.boids, self.config.separation_radius);
+        let broad_radius = self
+            .config
+            .perception_radius
+            .max(self.config.separation_radius);
+        let broad_neighbors = find_neighbors(boid, &self.boids, broad_radius);
+
+        let (perception_neighbors, separation_neighbors) =
+            if self.config.perception_radius >= self.config.separation_radius {
+                let separation_neighbors = find_neighbors(
+                    boid,
+                    broad_neighbors.iter().copied(),
+                    self.config.separation_radius,
+                );
+                (broad_neighbors, separation_neighbors)
+            } else {
+                let perception_neighbors = find_neighbors(
+                    boid,
+                    broad_neighbors.iter().copied(),
+                    self.config.perception_radius,
+                );
+                (perception_neighbors, broad_neighbors)
+            };
 
         let separation = separation(boid, &separation_neighbors);
         let alignment = alignment(boid, &perception_neighbors, self.config.max_speed);

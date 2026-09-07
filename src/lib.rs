@@ -118,12 +118,15 @@ impl Boid {
 
 /// Returns references to every boid in `boids` within `radius` of
 /// `boid`, excluding `boid` itself.
-pub fn find_neighbors<'a>(boid: &Boid, boids: &'a [Boid], radius: f32) -> Vec<&'a Boid> {
-    boids
-        .iter()
+pub fn find_neighbors<'a, I>(boid: &Boid, candidates: I, radius: f32) -> Vec<&'a Boid>
+where
+    I: IntoIterator<Item = &'a Boid>,
+{
+    candidates
+        .into_iter()
         .filter(|&other| {
             let distance = boid.position.distance(other.position);
-            distance < radius && *boid != *other
+            distance < radius && boid.position != other.position
         })
         .collect()
 }
