@@ -1,6 +1,8 @@
 //! Boids algorithm — simulation layer.
 
-use crate::{Boid, Vec2, Weights, alignment, cohesion, combine, find_neighbors, separation};
+use crate::{
+    Boid, SpatialGrid, Vec2, Weights, alignment, cohesion, combine, find_neighbors, separation,
+};
 use rand::{RngExt, rng};
 
 // ---------------------------------------------------------------------
@@ -61,11 +63,17 @@ pub fn spawn_boids(config: BoidConfig) -> Vec<Boid> {
 pub struct Simulation {
     pub boids: Vec<Boid>,
     pub config: SimConfig,
+    grid: SpatialGrid,
 }
 
 impl Simulation {
     pub fn new(boids: Vec<Boid>, config: SimConfig) -> Self {
-        Simulation { boids, config }
+        let grid = SpatialGrid::new(config.perception_radius.max(config.separation_radius));
+        Simulation {
+            boids,
+            config,
+            grid,
+        }
     }
 
     /// Advance the simulation by one timestep.
@@ -76,12 +84,15 @@ impl Simulation {
     /// later boids in the loop see already-updated neighbors instead of
     /// the previous frame's state.
     pub fn step(&mut self, dt: f32) {
+        self.grid.rebuild(&self.boids);
+
         let new_boids: Vec<Boid> = self
             .boids
             .iter()
-            .map(|boid| {
+            .enumerate()
+            .map(|(index, boid)| {
                 let acceleration = self
-                    .compute_acceleration(boid)
+                    .compute_acceleration(boid, index)
                     .clamp_length(self.config.max_speed / self.config.max_force_scale);
                 let new_velocity =
                     (boid.velocity + acceleration.scale(dt)).clamp_length(self.config.max_speed);
@@ -100,9 +111,32 @@ impl Simulation {
 
     /// Compute the steering acceleration for a single boid against the
     /// rest of the (unmodified) flock, using `self.config`.
-    fn compute_acceleration(&self, boid: &Boid) -> Vec2 {
-        let perception_neighbors = find_neighbors(boid, &self.boids, self.config.perception_radius);
-        let separation_neighbors = find_neighbors(boid, &self.boids, self.config.separation_radius);
+    fn compute_acceleration(&self, boid: &Boid, self_index: usize) -> Vec2 {
+        let broad_radius = self
+            .config
+            .perception_radius
+            .max(self.config.separation_radius);
+
+        let candidate_indices = self.grid.query_candidates(boid, self_index);
+        let candidates: Vec<&Boid> = candidate_indices.iter().map(|&i| &self.boids[i]).collect();
+        let broad_neighbors = find_neighbors(boid, candidates.iter().copied(), broad_radius);
+
+        let (perception_neighbors, separation_neighbors) =
+            if self.config.perception_radius >= self.config.separation_radius {
+                let separation_neighbors = find_neighbors(
+                    boid,
+                    broad_neighbors.iter().copied(),
+                    self.config.separation_radius,
+                );
+                (broad_neighbors, separation_neighbors)
+            } else {
+                let perception_neighbors = find_neighbors(
+                    boid,
+                    broad_neighbors.iter().copied(),
+                    self.config.perception_radius,
+                );
+                (perception_neighbors, broad_neighbors)
+            };
 
         let separation = separation(boid, &separation_neighbors);
         let alignment = alignment(boid, &perception_neighbors, self.config.max_speed);
